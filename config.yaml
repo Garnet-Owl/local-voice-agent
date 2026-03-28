@@ -1,7 +1,5 @@
 stt:
-  model_id: "openai/whisper-base"
-  #   model_id: "microsoft/VibeVoice-ASR-HF"
-  # CPU-only: keep as "cpu". Switch to "cuda" when a CUDA GPU is available.
+  model_id: "openai/whisper-tiny.en"
   device: "cpu"
 
 llm:
@@ -13,17 +11,8 @@ llm:
     Avoid bullet points, markdown, or lists. Speak in plain sentences only.
 
 tts:
-  model_id: "microsoft/speecht5_tts"
-  vocoder_id: "microsoft/speecht5_hifigan"
-  # CPU-only: keep as "cpu". Switch to "cuda" when a CUDA GPU is available.
+  model_id: "kakao-enterprise/vits-ljs"
   device: "cpu"
-  #   model_id: "OpenMOSS-Team/MOSS-TTS-Realtime"
-  #  codec_id: "OpenMOSS-Team/MOSS-Audio-Tokenizer"
-  #  # Path to a short reference wav (~5-10s) used to establish voice style.
-  #  # Place your file at audio/prompt.wav or update this path.
-  #  prompt_wav: "audio/prompt.wav"
-  #  sample_rate: 24000
-  #  # Switch to "cuda" when a CUDA GPU is available.
 
 audio_capture:
   sample_rate: 16000
