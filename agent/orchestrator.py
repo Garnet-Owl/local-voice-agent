@@ -1,69 +1,106 @@
+import asyncio
+import io
 import logging
+import re
+import time
 
+import soundfile as sf
 from google.genai import types
 
-from agent.audio_capture.vad_recorder import CaptureConfig, record_utterance
-from agent.llm.gemini_client import GeminiClient, LlmConfig
-from agent.stt.whisper_asr import SttConfig, WhisperAsr
-from agent.tts.speecht5_tts import SpeechT5Tts, TtsConfig
+from agent.llm.gemini_client import GeminiClient
+from agent.stt.whisper_asr import WhisperAsr
+from agent.tts.vits_tts import VitsTts
 
 logger = logging.getLogger(__name__)
-
-GREETING = (
-    "\n  Local Voice Agent ready. Speak after the prompt -- "
-    "pause to finish your turn. Press Ctrl+C to quit.\n"
-)
-TURN_SEPARATOR = "-" * 48
 
 
 class VoiceAgentOrchestrator:
     def __init__(
         self,
-        capture_config: CaptureConfig,
-        stt_config: SttConfig,
-        llm_config: LlmConfig,
-        tts_config: TtsConfig,
+        stt_engine: WhisperAsr,
+        llm_engine: GeminiClient,
+        tts_engine: VitsTts,
     ) -> None:
-        self._capture_config = capture_config
-        self._asr = WhisperAsr(stt_config)
-        self._llm = GeminiClient(llm_config)
-        self._tts = SpeechT5Tts(tts_config)
-        self._history: list[types.Content] = []
+        self._stt = stt_engine
+        self._llm = llm_engine
+        self._tts = tts_engine
 
-    def run(self) -> None:
-        print(GREETING)
-        try:
-            while True:
-                self._run_turn()
-        except KeyboardInterrupt:
-            print("\n\nSession ended.")
-
-    def _run_turn(self) -> None:
-        print(TURN_SEPARATOR)
-        audio = record_utterance(self._capture_config)
-
-        if audio is None:
-            logger.debug("No utterance captured, retrying.")
-            return
-
-        print("Transcribing...")
-        transcript = self._asr.transcribe(audio)
+    async def process_audio_turn(
+        self,
+        audio_array,
+        history: list,
+        on_chunk_callback,
+    ) -> str:
+        t0 = time.perf_counter()
+        transcript = await asyncio.to_thread(self._stt.transcribe, audio_array)
+        t_stt = time.perf_counter() - t0
 
         if not transcript:
-            print("  (No speech recognized, listening again.)")
-            return
+            return ""
 
-        print(f"  You: {transcript}")
-        print("  Agent: ", end="", flush=True)
+        logger.info(f"[STT: {t_stt:.2f}s] You: {transcript}")
 
-        text_chunks = self._llm.stream_reply(transcript, self._history)
+        history_content = [
+            types.Content(role=h["role"], parts=[types.Part.from_text(text=h["text"])])
+            for h in history
+        ]
 
-        collected = list(self._echo_and_yield(text_chunks))
-        print()
-        self._tts.synthesize_and_play(iter(collected))
+        tts_queue = asyncio.Queue()
 
-    @staticmethod
-    def _echo_and_yield(chunks):
-        for chunk in chunks:
-            print(chunk, end="", flush=True)
-            yield chunk
+        async def llm_task():
+            sentence_buffer = ""
+            full_reply = ""
+            t0_llm = time.perf_counter()
+
+            async for chunk in self._llm.stream_reply(transcript, history_content):
+                full_reply += chunk
+                sentence_buffer += chunk
+
+                match = re.search(r"([.!?,;])\s*", sentence_buffer)
+                if match:
+                    split_idx = match.end()
+                    clean_text = (
+                        sentence_buffer[:split_idx]
+                        .strip()
+                        .replace("*", "")
+                        .replace("\n", " ")
+                    )
+                    if len(clean_text) > 2:
+                        await tts_queue.put(clean_text)
+                    sentence_buffer = sentence_buffer[split_idx:]
+
+            if sentence_buffer.strip():
+                clean_text = sentence_buffer.strip().replace("*", "").replace("\n", " ")
+                if len(clean_text) > 1:
+                    await tts_queue.put(clean_text)
+
+            await tts_queue.put(None)
+            logger.info(
+                f"[LLM Total: {time.perf_counter() - t0_llm:.2f}s] Agent: {full_reply}"
+            )
+            return full_reply
+
+        async def tts_task():
+            while True:
+                text = await tts_queue.get()
+                if text is None:
+                    break
+
+                t0_tts = time.perf_counter()
+                audio_chunk = await asyncio.to_thread(self._tts.synthesize, text)
+
+                buffer = io.BytesIO()
+                sf.write(buffer, audio_chunk, 22050, format="WAV")
+                await on_chunk_callback(buffer.getvalue())
+
+                logger.info(
+                    f"[TTS: {time.perf_counter() - t0_tts:.2f}s] Synthesized: {text}"
+                )
+
+        llm_coro = asyncio.create_task(llm_task())
+        tts_coro = asyncio.create_task(tts_task())
+
+        full_reply = await llm_coro
+        await tts_coro
+
+        return transcript, full_reply
