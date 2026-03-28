@@ -3,15 +3,12 @@ import os
 import warnings
 
 import uvicorn
-from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket
 
 from agent.connections.websocket_handler import WebSocketHandler
 from agent.service import VoiceAgentService
 from shared.logging import setup_logging
 from main import get_health_status, get_pipeline_health
-
-load_dotenv()
 
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 warnings.filterwarnings("ignore")
@@ -26,7 +23,7 @@ orchestrator = None
 async def lifespan(app: FastAPI):
     global ws_handler, orchestrator
     service = VoiceAgentService()
-    orchestrator = service.initialize()
+    orchestrator = await service.initialize()
     ws_handler = WebSocketHandler(orchestrator)
     yield
 

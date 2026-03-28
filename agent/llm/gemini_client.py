@@ -1,4 +1,3 @@
-import os
 from dataclasses import dataclass
 from typing import AsyncGenerator
 
@@ -14,16 +13,15 @@ logger = setup_logging(__name__)
 class LlmConfig:
     model: str
     system_prompt: str
+    api_key: str | None = None
 
 
 class GeminiClient:
     def __init__(self, config: LlmConfig) -> None:
-        api_key = os.getenv("GEMINI_API_KEY")
+        if not config.api_key:
+            raise EnvironmentError("GEMINI_API_KEY not provided in configuration.")
 
-        if not api_key:
-            raise EnvironmentError("GEMINI_API_KEY environment variable not set.")
-
-        self._client = genai.Client(api_key=api_key)
+        self._client = genai.Client(api_key=config.api_key)
         self._config = config
         logger.info(f"LLM Client initialized with model: {config.model}")
 

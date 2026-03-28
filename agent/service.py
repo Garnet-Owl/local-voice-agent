@@ -21,7 +21,7 @@ class VoiceAgentService:
         self.vad_engine = None
         self.orchestrator = None
 
-    def initialize(self):
+    async def initialize(self):
         cfg = load_config()
         logger.info("Initializing voice agent engines...")
 
@@ -30,26 +30,37 @@ class VoiceAgentService:
         )
         self.stt_engine = WhisperAsr(stt_cfg)
         self.stt_engine._ensure_loaded()
-        asyncio.run(check_stt_health(self.stt_engine))
 
         llm_cfg = LlmConfig(
-            model=cfg["llm"]["model"], system_prompt=cfg["llm"]["system_prompt"]
+            model=cfg["llm"]["model"],
+            system_prompt=cfg["llm"]["system_prompt"],
+            api_key=cfg["llm"]["api_key"],
         )
         self.llm_engine = GeminiClient(llm_cfg)
-        asyncio.run(check_llm_health(self.llm_engine))
 
         tts_cfg = TtsConfig(
             model_id=cfg["tts"]["model_id"], device=cfg["tts"]["device"]
         )
         self.tts_engine = VitsTts(tts_cfg)
         self.tts_engine._ensure_loaded()
-        asyncio.run(check_tts_health(self.tts_engine))
 
         self.vad_engine = NeuralVADScanner(
             sample_rate=cfg["audio_capture"]["sample_rate"],
             threshold=cfg["audio_capture"]["vad_threshold"],
         )
-        asyncio.run(check_vad_health(self.vad_engine))
+
+        health_results = await asyncio.gather(
+            check_stt_health(self.stt_engine),
+            check_llm_health(self.llm_engine),
+            check_tts_health(self.tts_engine),
+            check_vad_health(self.vad_engine),
+        )
+
+        if not all(health_results):
+            logger.error("One or more engine health checks failed.")
+            raise RuntimeError(
+                "Voice agent engine health check failed. See logs for details."
+            )
 
         self.orchestrator = VoiceAgentOrchestrator(
             self.stt_engine, self.llm_engine, self.tts_engine, self.vad_engine
