@@ -1,26 +1,26 @@
-import os
-import warnings
 import asyncio
+import base64
+import contextlib
+import io
+import logging
+import os
 import re
+import time
+import warnings
+from pathlib import Path
+
+import soundfile as sf
+import uvicorn
+import yaml
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from google.genai import types
+
+from agent.llm.gemini_client import GeminiClient, LlmConfig
+from agent.stt.whisper_asr import SttConfig, WhisperAsr
+from agent.tts.vits_tts import TtsConfig, VitsTts
 
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 warnings.filterwarnings("ignore")
-
-import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-import yaml
-from pathlib import Path
-import contextlib
-import base64
-import io
-import time
-import soundfile as sf
-import logging
-
-from agent.stt.whisper_asr import SttConfig, WhisperAsr
-from agent.llm.gemini_client import GeminiClient, LlmConfig
-from agent.tts.vits_tts import VitsTts, TtsConfig  # CHANGED IMPORT
-from google.genai import types
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"

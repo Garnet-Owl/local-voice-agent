@@ -1,7 +1,7 @@
+import os
 from dataclasses import dataclass
 from typing import AsyncGenerator
-from pathlib import Path
-from dotenv import dotenv_values
+
 from google import genai
 from google.genai import types
 
@@ -13,15 +13,11 @@ class LlmConfig:
 
 
 class GeminiClient:
-    """Async, stateless, fast Gemini streaming client."""
-
     def __init__(self, config: LlmConfig) -> None:
-        root_dir = Path(__file__).parent.parent.parent
-        env_vars = dotenv_values(root_dir / ".env")
-        api_key = env_vars.get("GEMINI_API_KEY")
+        api_key = os.getenv("GEMINI_API_KEY")
 
         if not api_key:
-            raise EnvironmentError("GEMINI_API_KEY not found in the local .env file.")
+            raise EnvironmentError("GEMINI_API_KEY environment variable not set.")
 
         self._client = genai.Client(api_key=api_key)
         self._config = config
@@ -40,7 +36,6 @@ class GeminiClient:
         )
 
         full_reply = ""
-        # Use the async client (.aio) to stream without blocking
         async for chunk in await self._client.aio.models.generate_content_stream(
             model=self._config.model,
             contents=history,

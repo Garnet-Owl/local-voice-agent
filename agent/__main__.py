@@ -81,9 +81,7 @@ def main() -> None:
         device=cfg["tts"]["device"],
     )
 
-    orchestrator = VoiceAgentOrchestrator(
-        capture_cfg, stt_cfg, llm_cfg, tts_cfg
-    )
+    orchestrator = VoiceAgentOrchestrator(capture_cfg, stt_cfg, llm_cfg, tts_cfg)
     orchestrator.run()
 
 

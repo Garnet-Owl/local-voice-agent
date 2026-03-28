@@ -1,21 +1,19 @@
-import sys
+import asyncio
+import base64
+import io
+import json
 import warnings
+from pathlib import Path
+
+import sounddevice as sd
+import soundfile as sf
+import yaml
+import websockets
+
+from agent.audio_capture.vad_recorder import CaptureConfig, record_utterance
 
 # Suppress pkg_resources deprecation warning from webrtcvad
 warnings.filterwarnings("ignore", category=UserWarning)
-
-import asyncio
-import websockets
-import json
-import base64
-import io
-import soundfile as sf
-import sounddevice as sd
-from pathlib import Path
-import yaml
-
-sys.path.append(str(Path(__file__).parent.parent))
-from agent.audio_capture.vad_recorder import record_utterance, CaptureConfig
 
 WS_URL = "ws://127.0.0.1:8000/ws"
 

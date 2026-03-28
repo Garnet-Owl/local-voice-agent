@@ -1,22 +1,22 @@
 import os
 from dataclasses import dataclass
-import torch
-import numpy as np
 
-# EXPLICITLY TELL WINDOWS WHERE ESPEAK IS LOCATED
+import numpy as np
+import torch
+from transformers import AutoTokenizer, VitsModel
+
+# Explicitly tell Windows where espeak is located
 os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = r"C:\Program Files\eSpeak NG\libespeak-ng.dll"
 os.environ["PHONEMIZER_ESPEAK_PATH"] = r"C:\Program Files\eSpeak NG\espeak-ng.exe"
 
-from transformers import VitsModel, AutoTokenizer
 
 @dataclass(frozen=True)
 class TtsConfig:
     model_id: str
     device: str
 
-class VitsTts:
-    """Ultra-fast, clear TTS using VITS (<150MB)."""
 
+class VitsTts:
     def __init__(self, config: TtsConfig) -> None:
         self._config = config
         self._tokenizer = None

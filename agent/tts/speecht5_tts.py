@@ -6,10 +6,12 @@ import numpy as np
 from transformers import SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan
 from datasets import load_dataset
 
+
 @dataclass(frozen=True)
 class TtsConfig:
     model_id: str = "microsoft/speecht5_tts"
     device: str = "cpu"
+
 
 class SpeechT5Tts:
     """Fast, CPU-friendly TTS using SpeechT5 (<200MB)."""
@@ -37,7 +39,9 @@ class SpeechT5Tts:
         ).to(self._device)
 
         # ADDED trust_remote_code=True here
-        embeddings_dataset = load_dataset("regisss/cmu-arctic-xvectors", split="validation")
+        embeddings_dataset = load_dataset(
+            "regisss/cmu-arctic-xvectors", split="validation"
+        )
         self._speaker_embeddings = (
             torch.tensor(embeddings_dataset[7306]["xvector"])
             .unsqueeze(0)
@@ -48,7 +52,9 @@ class SpeechT5Tts:
         self._ensure_loaded()
         inputs = self._processor(text=text, return_tensors="pt").to(self._device)
         with torch.no_grad():
-            speech = self._model.generate_speech(inputs["input_ids"], self._speaker_embeddings, vocoder=self._vocoder)
+            speech = self._model.generate_speech(
+                inputs["input_ids"], self._speaker_embeddings, vocoder=self._vocoder
+            )
         return speech.cpu().numpy()
 
     def synthesize_and_play(self, text_chunks: Iterable[str]) -> None:

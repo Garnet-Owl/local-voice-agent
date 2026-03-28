@@ -1,18 +1,19 @@
 from dataclasses import dataclass
+
 import numpy as np
 import torch
 from transformers import pipeline
 
-_WHISPER_SAMPLE_RATE = 16_000
+WHISPER_SAMPLE_RATE = 16_000
+
 
 @dataclass(frozen=True)
 class SttConfig:
     model_id: str
     device: str
 
-class WhisperAsr:
-    """Ultra-fast English-only Whisper ASR transcriber."""
 
+class WhisperAsr:
     def __init__(self, config: SttConfig) -> None:
         self._config = config
         self._pipeline = None
@@ -27,13 +28,13 @@ class WhisperAsr:
         self._pipeline = pipeline(
             task="automatic-speech-recognition",
             model=self._config.model_id,
-            device=self._device
+            device=self._device,
         )
 
     def transcribe(self, audio: np.ndarray) -> str:
         self._ensure_loaded()
         result = self._pipeline(
-            {"raw": audio, "sampling_rate": _WHISPER_SAMPLE_RATE},
+            {"raw": audio, "sampling_rate": WHISPER_SAMPLE_RATE},
             return_timestamps=False,
         )
         return (result.get("text") or "").strip()

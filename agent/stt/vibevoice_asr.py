@@ -31,7 +31,8 @@ class VibeVoiceAsr:
         self._processor = None
         self._model = None
         self._device = torch.device(
-            "cuda" if config.device_map == "auto" and torch.cuda.is_available()
+            "cuda"
+            if config.device_map == "auto" and torch.cuda.is_available()
             else "cpu"
         )
 
@@ -81,7 +82,7 @@ class VibeVoiceAsr:
         with torch.no_grad():
             output_ids = self._model.generate(**inputs)
 
-        generated_ids = output_ids[:, inputs["input_ids"].shape[1]:]
+        generated_ids = output_ids[:, inputs["input_ids"].shape[1] :]
         result = self._processor.decode(
             generated_ids,
             return_format="transcription_only",
