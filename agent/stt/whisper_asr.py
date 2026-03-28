@@ -35,6 +35,7 @@ class WhisperAsr:
             model=self._config.model_id,
             device=self._device,
         )
+        self._pipeline.model.generation_config.forced_decoder_ids = None
 
     def transcribe(self, audio: np.ndarray) -> str:
         self._ensure_loaded()
