@@ -5,6 +5,10 @@ import numpy as np
 import torch
 from transformers import AutoTokenizer, VitsModel
 
+from shared.logging import setup_logging
+
+logger = setup_logging("vits_tts")
+
 # Explicitly tell Windows where espeak is located
 os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = r"C:\Program Files\eSpeak NG\libespeak-ng.dll"
 os.environ["PHONEMIZER_ESPEAK_PATH"] = r"C:\Program Files\eSpeak NG\espeak-ng.exe"
@@ -29,6 +33,7 @@ class VitsTts:
         if self._model is not None:
             return
 
+        logger.info(f"Loading VITS model: {self._config.model_id}")
         self._tokenizer = AutoTokenizer.from_pretrained(self._config.model_id)
         self._model = VitsModel.from_pretrained(self._config.model_id).to(self._device)
 

@@ -16,11 +16,9 @@ tts:
 
 audio_capture:
   sample_rate: 16000
-  # VAD aggressiveness: 0 (least) to 3 (most). Higher = ignores more background noise.
-  vad_aggressiveness: 2
+  # Silero VAD threshold (0.0 to 1.0). Higher = less sensitive.
+  vad_threshold: 0.5
   # Silence duration (seconds) before speech is considered finished.
   silence_timeout_sec: 1.2
   # Minimum speech duration (seconds) required to trigger transcription.
   min_speech_sec: 0.5
-  # VAD frame size in ms — must be exactly 10, 20, or 30.
-  frame_duration_ms: 30

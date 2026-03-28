@@ -5,6 +5,10 @@ from typing import AsyncGenerator
 from google import genai
 from google.genai import types
 
+from shared.logging import setup_logging
+
+logger = setup_logging("gemini_client")
+
 
 @dataclass(frozen=True)
 class LlmConfig:
@@ -21,6 +25,7 @@ class GeminiClient:
 
         self._client = genai.Client(api_key=api_key)
         self._config = config
+        logger.info(f"LLM Client initialized with model: {config.model}")
 
     async def stream_reply(
         self,

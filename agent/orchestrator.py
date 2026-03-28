@@ -1,6 +1,5 @@
 import asyncio
 import io
-import logging
 import re
 import time
 
@@ -10,8 +9,9 @@ from google.genai import types
 from agent.llm.gemini_client import GeminiClient
 from agent.stt.whisper_asr import WhisperAsr
 from agent.tts.vits_tts import VitsTts
+from shared.logging import setup_logging
 
-logger = logging.getLogger(__name__)
+logger = setup_logging("orchestrator")
 
 
 class VoiceAgentOrchestrator:

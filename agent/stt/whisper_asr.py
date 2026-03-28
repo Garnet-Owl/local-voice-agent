@@ -4,6 +4,10 @@ import numpy as np
 import torch
 from transformers import pipeline
 
+from shared.logging import setup_logging
+
+logger = setup_logging("whisper_asr")
+
 WHISPER_SAMPLE_RATE = 16_000
 
 
@@ -25,6 +29,7 @@ class WhisperAsr:
         if self._pipeline is not None:
             return
 
+        logger.info(f"Loading Whisper model: {self._config.model_id}")
         self._pipeline = pipeline(
             task="automatic-speech-recognition",
             model=self._config.model_id,
