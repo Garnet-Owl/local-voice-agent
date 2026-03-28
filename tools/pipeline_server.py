@@ -16,7 +16,7 @@ load_dotenv()
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 warnings.filterwarnings("ignore")
 
-logger = setup_logging("server")
+logger = setup_logging(__name__)
 
 ws_handler = None
 orchestrator = None

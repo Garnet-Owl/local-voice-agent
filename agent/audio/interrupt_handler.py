@@ -1,6 +1,6 @@
 from shared.logging import setup_logging
 
-logger = setup_logging("interrupt_handler")
+logger = setup_logging(__name__)
 
 
 class InterruptHandler:

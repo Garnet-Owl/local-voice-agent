@@ -9,7 +9,7 @@ from shared.config import load_config
 from shared.logging import setup_logging
 
 warnings.filterwarnings("ignore")
-logger = setup_logging("client_entry")
+logger = setup_logging(__name__)
 
 BASE_URL = "http://127.0.0.1:8000"
 WS_URL = "ws://127.0.0.1:8000/ws"

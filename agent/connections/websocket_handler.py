@@ -8,7 +8,7 @@ from agent.orchestrator import VoiceAgentOrchestrator
 from agent.audio.post_processor import AudioPostProcessor
 from shared.logging import setup_logging
 
-logger = setup_logging("websocket_handler")
+logger = setup_logging(__name__)
 
 
 class WebSocketHandler:

@@ -1,7 +1,7 @@
 import numpy as np
 from shared.logging import setup_logging
 
-logger = setup_logging("pre_processor")
+logger = setup_logging(__name__)
 
 
 class AudioPreProcessor:

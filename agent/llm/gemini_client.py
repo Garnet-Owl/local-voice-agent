@@ -7,7 +7,7 @@ from google.genai import types
 
 from shared.logging import setup_logging
 
-logger = setup_logging("gemini_client")
+logger = setup_logging(__name__)
 
 
 @dataclass(frozen=True)
@@ -54,13 +54,3 @@ class GeminiClient:
         history.append(
             types.Content(role="model", parts=[types.Part.from_text(text=full_reply)])
         )
-
-    async def health_check(self) -> bool:
-        try:
-            async for _ in self.stream_reply("health check", []):
-                break
-            logger.info("GeminiClient Health Check: OK")
-            return True
-        except Exception as e:
-            logger.error(f"GeminiClient Health Check FAILED: {e}")
-            return False
