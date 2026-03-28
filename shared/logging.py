@@ -3,7 +3,6 @@ import sys
 
 
 def setup_logging(name: str, level: int = logging.INFO) -> logging.Logger:
-    """Standardized logging setup for all project modules."""
     logger = logging.getLogger(name)
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)

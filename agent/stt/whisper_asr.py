@@ -43,3 +43,14 @@ class WhisperAsr:
             return_timestamps=False,
         )
         return (result.get("text") or "").strip()
+
+    def health_check(self) -> bool:
+        try:
+            self._ensure_loaded()
+            dummy_audio = np.zeros(WHISPER_SAMPLE_RATE, dtype=np.float32)
+            self.transcribe(dummy_audio)
+            logger.info("WhisperAsr Health Check: OK")
+            return True
+        except Exception as e:
+            logger.error(f"WhisperAsr Health Check FAILED: {e}")
+            return False

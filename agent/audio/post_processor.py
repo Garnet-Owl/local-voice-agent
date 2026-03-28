@@ -11,11 +11,9 @@ class AudioPostProcessor:
         pass
 
     def process(self, audio: np.ndarray) -> np.ndarray:
-        """Apply volume normalization or other post-synthesis refinements."""
         if len(audio) == 0:
             return audio
 
-        # Peak normalization as a default safeguard
         peak = np.abs(audio).max()
         if peak > 0:
             return audio / peak

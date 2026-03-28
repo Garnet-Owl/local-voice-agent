@@ -11,6 +11,4 @@ class AudioPreProcessor:
         pass
 
     def process(self, audio: np.ndarray) -> np.ndarray:
-        """Apply pre-processing steps to the audio array."""
-        # TODO: Implement noise reduction or DC offset removal if needed
         return audio

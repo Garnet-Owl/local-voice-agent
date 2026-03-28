@@ -113,3 +113,17 @@ class NeuralVADScanner:
                         self._speech_end_handler()
         except Exception as e:
             logger.error(f"VAD evaluation error: {e}")
+
+    def health_check(self) -> bool:
+        try:
+            if not self.is_engine_ready():
+                logger.error("VAD Health Check: Engine not ready.")
+                return False
+            dummy_frame = np.zeros(self._frame_samples, dtype=np.float32)
+            input_tensor = torch.from_numpy(dummy_frame)
+            self._model(input_tensor, self._rate)
+            logger.info("VAD Health Check: OK")
+            return True
+        except Exception as e:
+            logger.error(f"VAD Health Check FAILED: {e}")
+            return False

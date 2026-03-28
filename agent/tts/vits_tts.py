@@ -9,7 +9,6 @@ from shared.logging import setup_logging
 
 logger = setup_logging("vits_tts")
 
-# Explicitly tell Windows where espeak is located
 os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = r"C:\Program Files\eSpeak NG\libespeak-ng.dll"
 os.environ["PHONEMIZER_ESPEAK_PATH"] = r"C:\Program Files\eSpeak NG\espeak-ng.exe"
 
@@ -43,3 +42,13 @@ class VitsTts:
         with torch.no_grad():
             output = self._model(**inputs).waveform
         return output.cpu().numpy().squeeze()
+
+    def health_check(self) -> bool:
+        try:
+            self._ensure_loaded()
+            self.synthesize("health check")
+            logger.info("VitsTts Health Check: OK")
+            return True
+        except Exception as e:
+            logger.error(f"VitsTts Health Check FAILED: {e}")
+            return False

@@ -1,3 +1,4 @@
+from agent.audio.silero_vad import NeuralVADScanner
 from agent.llm.gemini_client import GeminiClient, LlmConfig
 from agent.orchestrator import VoiceAgentOrchestrator
 from agent.stt.whisper_asr import SttConfig, WhisperAsr
@@ -15,6 +16,7 @@ class VoiceAgentService:
         self.stt_engine = None
         self.llm_engine = None
         self.tts_engine = None
+        self.vad_engine = None
         self.orchestrator = None
 
     def initialize(self):
@@ -26,6 +28,7 @@ class VoiceAgentService:
         )
         self.stt_engine = WhisperAsr(stt_cfg)
         self.stt_engine._ensure_loaded()
+        self.stt_engine.health_check()
 
         llm_cfg = LlmConfig(
             model=cfg["llm"]["model"], system_prompt=cfg["llm"]["system_prompt"]
@@ -37,9 +40,16 @@ class VoiceAgentService:
         )
         self.tts_engine = VitsTts(tts_cfg)
         self.tts_engine._ensure_loaded()
+        self.tts_engine.health_check()
+
+        self.vad_engine = NeuralVADScanner(
+            sample_rate=cfg["audio_capture"]["sample_rate"],
+            threshold=cfg["audio_capture"]["vad_threshold"],
+        )
+        self.vad_engine.health_check()
 
         self.orchestrator = VoiceAgentOrchestrator(
-            self.stt_engine, self.llm_engine, self.tts_engine
+            self.stt_engine, self.llm_engine, self.tts_engine, self.vad_engine
         )
 
         logger.info("All engines initialized and warmed up.")

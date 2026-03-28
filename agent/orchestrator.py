@@ -137,10 +137,42 @@ class VoiceAgentOrchestrator:
         stt_engine: WhisperAsr,
         llm_engine: GeminiClient,
         tts_engine: VitsTts,
+        vad_engine: NeuralVADScanner,
     ) -> None:
         self._stt = stt_engine
         self._llm = llm_engine
         self._tts = tts_engine
+        self._vad = vad_engine
+
+    async def check_pipeline(self) -> dict:
+        return {
+            "stt": self._stt.health_check(),
+            "llm": await self._llm.health_check(),
+            "tts": self._tts.health_check(),
+            "vad": self._vad.health_check(),
+        }
+
+    async def run_pipeline_test(self, audio_data: np.ndarray) -> bool:
+        try:
+            transcript = await asyncio.to_thread(self._stt.transcribe, audio_data)
+            if not transcript:
+                return False
+
+            history = []
+            reply = ""
+            async for chunk in self._llm.stream_reply(transcript, history):
+                reply += chunk
+            if not reply:
+                return False
+
+            audio_out = await asyncio.to_thread(self._tts.synthesize, "Test.")
+            if audio_out is None or len(audio_out) == 0:
+                return False
+
+            return True
+        except Exception as e:
+            logger.error(f"Pipeline test failed: {e}")
+            return False
 
     async def process_audio_turn(
         self,

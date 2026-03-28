@@ -45,7 +45,6 @@ class WebSocketHandler:
             await websocket.send_json({"type": "status", "text": "Thinking..."})
 
             async def send_audio_chunk(chunk_bytes):
-                # Apply post-processing to TTS chunk
                 chunk_array, sr = sf.read(io.BytesIO(chunk_bytes))
                 processed_chunk = self._post_processor.process(chunk_array)
 
