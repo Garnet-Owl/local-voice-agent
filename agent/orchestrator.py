@@ -1,11 +1,20 @@
 import asyncio
+import base64
 import io
+import json
+import queue
 import re
 import time
 
+import numpy as np
+import sounddevice as sd
 import soundfile as sf
+import websockets
 from google.genai import types
 
+from agent.audio.interrupt_handler import InterruptHandler
+from agent.audio.pre_processor import AudioPreProcessor
+from agent.audio.silero_vad import NeuralVADScanner
 from agent.llm.gemini_client import GeminiClient
 from agent.stt.whisper_asr import WhisperAsr
 from agent.tts.vits_tts import VitsTts
@@ -14,7 +23,115 @@ from shared.logging import setup_logging
 logger = setup_logging("orchestrator")
 
 
+class VoiceClientOrchestrator:
+    """Orchestrates client-side audio capture, VAD, and server communication."""
+
+    def __init__(self, cfg: dict, ws_url: str):
+        self._cfg = cfg
+        self._ws_url = ws_url
+        self._sample_rate = cfg["audio_capture"]["sample_rate"]
+        self._interrupt_handler = InterruptHandler()
+        self._pre_processor = AudioPreProcessor()
+        self._audio_queue = queue.Queue()
+        self._is_running = True
+
+        chunk_dur = 0.032 if self._sample_rate == 16000 else 0.016
+        min_speech = max(1, int(cfg["audio_capture"]["min_speech_sec"] / chunk_dur))
+        silence_timeout = max(
+            1, int(cfg["audio_capture"]["silence_timeout_sec"] / chunk_dur)
+        )
+
+        self._vad = NeuralVADScanner(
+            sample_rate=self._sample_rate,
+            threshold=cfg["audio_capture"]["vad_threshold"],
+            min_speech_chunks=min_speech,
+            min_silence_chunks=silence_timeout,
+            on_speech_start=self._on_speech_start,
+            on_speech_end=self._on_speech_end,
+        )
+
+        self._recorded_frames = []
+        self._is_recording = False
+
+    def _on_speech_start(self):
+        if self._interrupt_handler.check_for_interrupt(True):
+            sd.stop()
+        logger.info("Speech detected.")
+        self._is_recording = True
+        self._recorded_frames = []
+
+    def _on_speech_end(self):
+        logger.info("Silence detected.")
+        self._is_recording = False
+        if self._recorded_frames:
+            raw = b"".join(self._recorded_frames)
+            audio_f32 = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+            processed = self._pre_processor.process(audio_f32)
+            self._audio_queue.put(processed)
+            self._recorded_frames = []
+
+    def _audio_callback(self, indata, frames, time, status):
+        chunk = bytes(indata)
+        self._vad.ingest_audio(chunk)
+        if self._is_recording:
+            self._recorded_frames.append(chunk)
+
+    async def connect_and_stream(self):
+        try:
+            async with websockets.connect(self._ws_url) as ws:
+                logger.info("Connected to server.")
+                with sd.RawInputStream(
+                    samplerate=self._sample_rate,
+                    blocksize=512 if self._sample_rate == 16000 else 256,
+                    dtype="int16",
+                    channels=1,
+                    callback=self._audio_callback,
+                ):
+                    send_t = asyncio.create_task(self._send_loop(ws))
+                    recv_t = asyncio.create_task(self._receive_loop(ws))
+                    await asyncio.gather(send_t, recv_t)
+        except Exception as e:
+            logger.error(f"Client orchestration error: {e}")
+        finally:
+            self._is_running = False
+
+    async def _send_loop(self, ws):
+        while self._is_running:
+            try:
+                audio = await asyncio.to_thread(self._audio_queue.get, timeout=0.1)
+                buf = io.BytesIO()
+                sf.write(buf, audio, self._sample_rate, format="WAV")
+                encoded = base64.b64encode(buf.getvalue()).decode("utf-8")
+                await ws.send(json.dumps({"type": "audio", "data": encoded}))
+            except queue.Empty:
+                continue
+            except Exception as e:
+                logger.error(f"Send error: {e}")
+
+    async def _receive_loop(self, ws):
+        while self._is_running:
+            try:
+                msg = await ws.recv()
+                data = json.loads(msg)
+                if data["type"] == "audio_chunk":
+                    if self._interrupt_handler.is_interrupted():
+                        continue
+                    self._interrupt_handler.start_agent_speech()
+                    raw = base64.b64decode(data["data"])
+                    arr, sr = sf.read(io.BytesIO(raw))
+                    sd.play(arr, samplerate=sr)
+                    await asyncio.to_thread(sd.wait)
+                elif data["type"] == "turn_complete":
+                    self._interrupt_handler.stop_agent_speech()
+            except websockets.exceptions.ConnectionClosed:
+                self._is_running = False
+            except Exception as e:
+                logger.error(f"Receive error: {e}")
+
+
 class VoiceAgentOrchestrator:
+    """Orchestrates server-side STT, LLM, and TTS pipeline."""
+
     def __init__(
         self,
         stt_engine: WhisperAsr,
