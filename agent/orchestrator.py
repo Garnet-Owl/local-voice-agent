@@ -238,24 +238,39 @@ class VoiceAgentOrchestrator:
 
     async def _stream_llm_and_tts(self, transcript, chat, on_chunk_callback) -> None:
         sentence_queue = asyncio.Queue()
+        min_phrase_chars = 28
+        max_phrase_chars = 110
+
+        def find_split_index(buffer: str) -> int | None:
+            terminal_match = re.search(r"[.!?]\s+", buffer)
+            if terminal_match and terminal_match.end() >= min_phrase_chars:
+                return terminal_match.end()
+
+            clause_match = re.search(r"[,;:]\s+", buffer)
+            if clause_match and clause_match.end() >= min_phrase_chars:
+                return clause_match.end()
+
+            if len(buffer) < max_phrase_chars:
+                return None
+
+            whitespace_idx = buffer.rfind(" ", 0, max_phrase_chars)
+            if whitespace_idx >= min_phrase_chars:
+                return whitespace_idx + 1
+
+            return max_phrase_chars
 
         async def llm_task():
             sentence_buffer = ""
             full_reply = ""
             t0_llm = time.perf_counter()
-            flush_threshold = 45
 
             async for chunk in self._llm.stream_reply(transcript, chat):
                 full_reply += chunk
                 sentence_buffer += chunk
-                match = re.search(
-                    rf"([.!?])\s+|([,;:])\s+(?=.{{8,}})|(?<=\s)(?=.{{{flush_threshold},}}$)",
-                    sentence_buffer,
-                )
-                if match:
-                    split_idx = match.end()
-                    if split_idx == 0:
-                        split_idx = flush_threshold
+                while True:
+                    split_idx = find_split_index(sentence_buffer)
+                    if split_idx is None:
+                        break
                     sentence = (
                         sentence_buffer[:split_idx]
                         .strip()
