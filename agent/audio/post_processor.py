@@ -1,5 +1,6 @@
+import base64
+
 import numpy as np
-import librosa
 from shared.logging import setup_logging
 
 logger = setup_logging(__name__)
@@ -9,16 +10,21 @@ class AudioPostProcessor:
     """Handles refinement of synthesized TTS audio."""
 
     def __init__(self) -> None:
-        pass
+        self._silence_floor = 1e-4
+        self._pcm_max = 32767.0
 
     def process(self, audio: np.ndarray) -> np.ndarray:
         if len(audio) == 0:
             return audio
 
-        # Trim leading/trailing silence (below 30dB)
-        trimmed, _ = librosa.effects.trim(audio, top_db=30)
-
-        peak = np.abs(trimmed).max()
+        peak = np.abs(audio).max()
+        if peak < self._silence_floor:
+            return np.array([], dtype=audio.dtype)
         if peak > 0:
-            return trimmed / peak
-        return trimmed
+            return audio / peak
+        return audio
+
+    def encode_transport(self, audio: np.ndarray) -> str:
+        pcm = np.clip(audio, -1.0, 1.0)
+        pcm = (pcm * self._pcm_max).astype(np.int16)
+        return base64.b64encode(pcm.tobytes()).decode("utf-8")

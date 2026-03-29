@@ -13,6 +13,8 @@ llm:
 tts:
   model_id: "af_heart"
   device: "cpu"
+  speed: 1.1
+  thread_count:
 
 audio_capture:
   sample_rate: 16000

@@ -43,7 +43,10 @@ class VoiceAgentService:
         self.llm_engine = GeminiClient(llm_cfg)
 
         tts_cfg = TtsConfig(
-            model_id=cfg["tts"]["model_id"], device=cfg["tts"]["device"]
+            model_id=cfg["tts"]["model_id"],
+            device=cfg["tts"]["device"],
+            speed=cfg["tts"].get("speed", 1.0),
+            thread_count=cfg["tts"].get("thread_count"),
         )
         self.tts_engine = KokoroTts(tts_cfg)
         self.tts_engine._ensure_loaded()
