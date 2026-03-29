@@ -1,15 +1,13 @@
-# local-voice-agent
+# Local Voice Agent
 
-A fully local voice agent combining:
+A fully local, real-time voice assistant with a client-server architecture over WebSockets.
 
-- **STT**: `microsoft/VibeVoice-ASR-HF` (Transformers >= 5.3.0)
-- **Brain**: Gemini Flash streaming (multi-turn conversation history)
-- **TTS**: `OpenMOSS-Team/MOSS-TTS-Realtime` (editable install from MOSS-TTS repo)
-- **VAD**: `webrtcvad` — auto-detects speech from your microphone
-
-> **CPU-only warning**: Both STT and TTS models are large (~0.5-1.7B params).
-> On CPU each turn takes 10-60+ seconds. A CUDA GPU is needed for real-time speed.
-> When you have one, set `device_map: "auto"` and `device: "cuda"` in `config.yaml`.
+| Layer | Engine | Details |
+|-------|--------|---------|
+| **STT** | [Vosk](https://alphacephei.com/vosk/) | Offline, lightweight speech recognition via `KaldiRecognizer` |
+| **LLM** | [Gemini Flash](https://ai.google.dev/) | Async streaming with multi-turn chat via `google-genai` |
+| **TTS** | [LuxTTS](https://github.com/ysharma3501/LuxTTS) | 48 kHz, 150× real-time on GPU, voice cloning support |
+| **VAD** | [Silero VAD](https://github.com/snakers4/silero-vad) | Neural voice activity detection with barge-in support |
 
 ---
 
@@ -18,150 +16,189 @@ A fully local voice agent combining:
 ```
 local-voice-agent/
 ├── agent/
-│   ├── __init__.py
-│   ├── __main__.py               # Entry point: python -m agent
-│   ├── orchestrator.py           # Pipeline controller (mic -> STT -> LLM -> TTS)
-│   ├── audio_capture/
-│   │   ├── __init__.py
-│   │   └── vad_recorder.py       # VAD mic capture -> numpy utterance
-│   ├── stt/
-│   │   ├── __init__.py
-│   │   └── vibevoice_asr.py      # VibeVoice-ASR-HF wrapper
+│   ├── audio/
+│   │   ├── interrupt_handler.py   # Barge-in / interrupt detection
+│   │   ├── post_processor.py      # TTS audio normalization + PCM encoding
+│   │   ├── pre_processor.py       # Mic audio decoding + preprocessing
+│   │   └── silero_vad.py          # Neural VAD engine
+│   ├── connections/
+│   │   └── websocket_handler.py   # Server-side WebSocket orchestration
 │   ├── llm/
-│   │   ├── __init__.py
-│   │   └── gemini_client.py      # Gemini Flash streaming, multi-turn history
-│   └── tts/
-│       ├── __init__.py
-│       └── moss_tts.py           # MOSS-TTS-Realtime streaming playback
-├── audio/
-│   └── prompt.wav                # (you provide this) voice reference for TTS
-├── config.yaml
-├── requirements.txt
-├── CHANGELOG.md
-└── README.md
+│   │   └── gemini_client.py       # Gemini Flash async streaming client
+│   ├── stt/
+│   │   └── vosk_asr.py            # Vosk offline speech recognition
+│   ├── tts/
+│   │   └── lux_tts.py             # LuxTTS voice synthesis engine
+│   ├── orchestrator.py            # Client + server pipeline controllers
+│   └── service.py                 # Engine initialization and lifecycle
+├── models/
+│   ├── vosk-model-en-us-0.22-lgraph/  # Vosk model (download separately)
+│   └── default_voice.wav              # TTS voice reference audio
+├── shared/
+│   ├── config.py                  # Settings + config loading
+│   └── logging.py                 # Logging setup
+├── tools/
+│   ├── pipeline_server.py         # FastAPI server entry point
+│   ├── pipeline_client.py         # WebSocket client entry point
+│   └── tts_benchmark.py           # TTS thread-count benchmarking tool
+├── main.py                        # Health checks + diagnostics
+├── config.yaml                    # All runtime configuration
+├── pyproject.toml                 # Dependencies (managed by uv)
+└── CHANGELOG.md
 ```
 
 ---
 
-## Setup (one-time)
+## Setup
 
-### 1. Install MOSS-TTS (must be done before pip install -r requirements.txt)
-
-```bash
-cd C:\Users\Marcus\Desktop\personal-dev-ops
-git clone https://github.com/OpenMOSS/MOSS-TTS.git
-cd MOSS-TTS
-pip install -e .
-```
-
-### 2. Install project dependencies
+### 1. Create environment and install dependencies
 
 ```bash
-cd C:\Users\Marcus\Desktop\personal-dev-ops\local-voice-agent
-pip install -r requirements.txt
+uv venv --python=python3.11
+uv sync
 ```
+
+### 2. Download the Vosk speech recognition model
+
+```bash
+curl -L -o models/vosk-model-en-us-0.22-lgraph.zip \
+  https://alphacephei.com/vosk/models/vosk-model-en-us-0.22-lgraph.zip
+cd models && unzip vosk-model-en-us-0.22-lgraph.zip && rm vosk-model-en-us-0.22-lgraph.zip
+```
+
+Other models available at [alphacephei.com/vosk/models](https://alphacephei.com/vosk/models).
 
 ### 3. Set your Gemini API key
 
+Create a `.env` file at the project root:
+
+```
+GEMINI_API_KEY=your_key_here
+```
+
+### 4. (Optional) Add a voice reference for TTS
+
+LuxTTS is a voice cloning model. For best quality, provide a 3–5 second WAV
+recording of clear speech:
+
+```yaml
+# config.yaml
+tts:
+  prompt_audio: "models/your_voice.wav"
+```
+
+A synthetic default is included at `models/default_voice.wav`, but a real
+voice recording will produce significantly better output.
+
+---
+
+## Running
+
+Start the server and client in separate terminals:
+
 ```bash
-# Windows CMD
-set GEMINI_API_KEY=your_key_here
+# Terminal 1 — Server
+python tools/pipeline_server.py
 
-# PowerShell
-$env:GEMINI_API_KEY="your_key_here"
+# Terminal 2 — Client
+python tools/pipeline_client.py
 ```
 
-### 4. Add a voice prompt wav
+The server starts on `http://127.0.0.1:8000`. The client connects via
+WebSocket at `ws://127.0.0.1:8000/ws`, captures your microphone, and plays
+back the agent's responses in real time.
 
-MOSS-TTS-Realtime requires a short reference audio clip (~5-10 seconds of
-clear speech, 24 kHz wav) to establish the voice style for synthesis.
-
-Place it at:
-
-```
-local-voice-agent\audio\prompt.wav
-```
-
-Any clear recording of someone speaking works. You can record one with Audacity
-or download a sample speech wav and resample to 24 kHz.
-
-### 5. Run
+### Health checks
 
 ```bash
-cd C:\Users\Marcus\Desktop\personal-dev-ops\local-voice-agent
-python -m agent
+# From client
+python tools/pipeline_client.py --health
+
+# Direct HTTP
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/pipeline/health
 ```
 
 ---
 
 ## Configuration
 
-All settings are in `config.yaml` — model IDs, VAD sensitivity, silence timeout,
-and device selection. No secrets belong in config; the API key comes from the
-environment variable only.
-
-Key settings to tune:
+All settings are in `config.yaml`. The API key is loaded from `.env` only.
 
 | Setting | Default | Notes |
-|---|---|---|
-| `audio_capture.vad_aggressiveness` | `2` | 0-3, raise if noisy environment |
-| `audio_capture.silence_timeout_sec` | `1.2` | Lower for faster response trigger |
-| `stt.device_map` | `"cpu"` | Change to `"auto"` for GPU |
-| `tts.device` | `"cpu"` | Change to `"cuda"` for GPU |
+|---------|---------|-------|
+| `stt.model_path` | `models/vosk-model-en-us-0.22-lgraph` | Path to Vosk model directory |
+| `tts.model_id` | `YatharthS/LuxTTS` | HuggingFace model ID |
+| `tts.device` | `cpu` | Set to `cuda` for GPU acceleration |
+| `tts.speed` | `1.0` | Playback speed multiplier |
+| `tts.num_steps` | `4` | Synthesis quality (3–4 recommended) |
+| `tts.t_shift` | `0.5` | Sampling temperature (higher = richer but more errors) |
+| `tts.thread_count` | `4` | Torch threads for CPU inference |
+| `tts.prompt_audio` | `models/default_voice.wav` | Voice reference for cloning |
+| `audio_capture.vad_threshold` | `0.5` | VAD sensitivity (0.0–1.0, higher = less sensitive) |
+| `audio_capture.silence_timeout_sec` | `1.2` | Seconds of silence before turn ends |
+| `audio_capture.min_speech_sec` | `0.5` | Minimum speech to trigger transcription |
 
+---
 
-## Development Workflow
+## Architecture
 
-For local development without Docker, you can use `uv` for environment and dependency management.
+```
+┌─────────────────────────────────────────────────────────┐
+│  Client (pipeline_client.py)                            │
+│  ┌──────────┐  ┌──────────┐  ┌────────────────────────┐ │
+│  │ Mic In   │→ │ Silero   │→ │ WebSocket Send         │ │
+│  │ 16 kHz   │  │ VAD      │  │ (base64 PCM chunks)    │ │
+│  └──────────┘  └──────────┘  └────────────────────────┘ │
+│  ┌────────────────────────┐  ┌──────────┐               │
+│  │ WebSocket Recv         │→ │ Speaker  │               │
+│  │ (base64 PCM chunks)    │  │ 48 kHz   │               │
+│  └────────────────────────┘  └──────────┘               │
+└─────────────────────────────────────────────────────────┘
+                    ▲ WebSocket ▼
+┌─────────────────────────────────────────────────────────┐
+│  Server (pipeline_server.py)                            │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
+│  │ Vosk STT │→ │ Gemini   │→ │ LuxTTS   │              │
+│  │ (16 kHz) │  │ Flash    │  │ (48 kHz) │              │
+│  └──────────┘  │ Streaming│  │ Streaming│              │
+│                └──────────┘  └──────────┘              │
+│  LLM and TTS run concurrently via asyncio.gather       │
+└─────────────────────────────────────────────────────────┘
+```
 
-1.  **Install uv** (if not already installed)
-    ```bash
-    pip install uv
-    ```
+---
 
-2.  **Create a virtual environment with Python 3.12**
-    ```bash
-    uv venv --python=python3.11
-    ```
+## Benchmarking
 
-3.  **Activate the virtual environment**
+Use the TTS benchmark tool to find the optimal thread count for your CPU:
 
-    Windows:
-    ```bash
-    .venv\Scripts\activate
-    ```
-    Linux/macOS:
-    ```bash
-    source .venv/bin/activate
-    ```
-4.  **Install dependencies with uv**
-    ```bash
-    uv sync
-    ```
+```bash
+python -m tools.tts_benchmark
+```
 
-5.  **Install the pre-commit hooks**
-    ```bash
-    pre-commit install
-    ```
+This runs isolated and overlapped (STT + LLM + TTS concurrent) benchmarks
+across multiple thread counts and recommends the best configuration.
 
-6.  **Running the Application Locally**
-    To run the development server locally:
-    ```bash
-    uvicorn app.main:app --reload
-    ```
+---
 
-7.  **Using Ruff for linting and formatting**
-    ```bash
-    # Run linting
-    ruff check .
+## Development
 
-    # Apply automatic fixes to linting issues
-    ruff check --fix .
+```bash
+# Install dev dependencies
+uv sync --group dev
 
-    # Format code
-    ruff format .
-    ```
+# Install pre-commit hooks
+pre-commit install
+
+# Lint and format
+ruff check .
+ruff check --fix .
+ruff format .
+```
+
+---
 
 ## License
 
-Free
+Apache-2.0
