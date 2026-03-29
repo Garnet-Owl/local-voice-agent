@@ -3,7 +3,7 @@ from agent.audio.silero_vad import NeuralVADScanner
 from agent.llm.gemini_client import GeminiClient, LlmConfig
 from agent.orchestrator import VoiceAgentOrchestrator
 from agent.stt.whisper_asr import SttConfig, WhisperAsr
-from agent.tts.vits_tts import TtsConfig, VitsTts
+from agent.tts.kokoro_tts import TtsConfig, KokoroTts
 from shared.config import load_config
 from shared.logging import setup_logging
 from main import check_stt_health, check_llm_health, check_tts_health, check_vad_health
@@ -45,7 +45,7 @@ class VoiceAgentService:
         tts_cfg = TtsConfig(
             model_id=cfg["tts"]["model_id"], device=cfg["tts"]["device"]
         )
-        self.tts_engine = VitsTts(tts_cfg)
+        self.tts_engine = KokoroTts(tts_cfg)
         self.tts_engine._ensure_loaded()
 
         self.vad_engine = NeuralVADScanner(

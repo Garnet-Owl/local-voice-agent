@@ -15,7 +15,7 @@ from agent.audio.pre_processor import AudioPreProcessor
 from agent.audio.silero_vad import NeuralVADScanner
 from agent.llm.gemini_client import GeminiClient
 from agent.stt.whisper_asr import WhisperAsr
-from agent.tts.vits_tts import VitsTts
+from agent.tts.kokoro_tts import KokoroTts
 from shared.logging import setup_logging
 
 logger = setup_logging(__name__)
@@ -134,7 +134,7 @@ class VoiceAgentOrchestrator:
         self,
         stt_engine: WhisperAsr,
         llm_engine: GeminiClient,
-        tts_engine: VitsTts,
+        tts_engine: KokoroTts,
         vad_engine: NeuralVADScanner,
     ) -> None:
         self._stt = stt_engine
@@ -157,7 +157,7 @@ class VoiceAgentOrchestrator:
 
         logger.info(f"[STT: {t_stt:.2f}s] You: {transcript}")
 
-        tts_queue = asyncio.Queue()
+        sentence_queue = asyncio.Queue()
 
         async def llm_task():
             sentence_buffer = ""
@@ -167,52 +167,47 @@ class VoiceAgentOrchestrator:
             async for chunk in self._llm.stream_reply(transcript, chat):
                 full_reply += chunk
                 sentence_buffer += chunk
-
-                match = re.search(r"([.!?,;])\s*", sentence_buffer)
+                match = re.search(r"([.!?])\s+", sentence_buffer)
                 if match:
                     split_idx = match.end()
-                    clean_text = (
+                    sentence = (
                         sentence_buffer[:split_idx]
                         .strip()
                         .replace("*", "")
                         .replace("\n", " ")
                     )
-                    if len(clean_text) > 2:
-                        await tts_queue.put(clean_text)
+                    if len(sentence) > 2:
+                        await sentence_queue.put(sentence)
                     sentence_buffer = sentence_buffer[split_idx:]
 
             if sentence_buffer.strip():
-                clean_text = sentence_buffer.strip().replace("*", "").replace("\n", " ")
-                if len(clean_text) > 1:
-                    await tts_queue.put(clean_text)
+                await sentence_queue.put(
+                    sentence_buffer.strip().replace("*", "").replace("\n", " ")
+                )
 
-            await tts_queue.put(None)
+            await sentence_queue.put(None)
             logger.info(
                 f"[LLM Total: {time.perf_counter() - t0_llm:.2f}s] Agent: {full_reply}"
             )
-            return full_reply
 
         async def tts_task():
             while True:
-                text = await tts_queue.get()
-                if text is None:
+                sentence = await sentence_queue.get()
+                if sentence is None:
                     break
-
                 t0_tts = time.perf_counter()
-                audio_chunk = await asyncio.to_thread(self._tts.synthesize, text)
-
-                buffer = io.BytesIO()
-                sf.write(buffer, audio_chunk, 22050, format="WAV")
-                await on_chunk_callback(buffer.getvalue())
-
+                chunks = await asyncio.to_thread(list, self._tts.stream(sentence))
+                for audio_chunk in chunks:
+                    buffer = io.BytesIO()
+                    sf.write(buffer, audio_chunk, 24000, format="WAV")
+                    await on_chunk_callback(buffer.getvalue())
                 logger.info(
-                    f"[TTS: {time.perf_counter() - t0_tts:.2f}s] Synthesized: {text}"
+                    f"[TTS: {time.perf_counter() - t0_tts:.2f}s] Synthesized: {sentence}"
                 )
 
-        llm_coro = asyncio.create_task(llm_task())
-        tts_coro = asyncio.create_task(tts_task())
+        await asyncio.gather(
+            asyncio.create_task(llm_task()),
+            asyncio.create_task(tts_task()),
+        )
 
-        full_reply = await llm_coro
-        await tts_coro
-
-        return transcript, full_reply
+        return transcript

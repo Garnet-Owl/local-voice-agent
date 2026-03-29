@@ -1,5 +1,5 @@
 stt:
-  model_id: "openai/whisper-tiny.en"
+  model_id: "UsefulSensors/moonshine-tiny"
   device: "cpu"
 
 llm:
@@ -11,7 +11,7 @@ llm:
     Avoid bullet points, markdown, or lists. Speak in plain sentences only.
 
 tts:
-  model_id: "kakao-enterprise/vits-ljs"
+  model_id: "af_heart"
   device: "cpu"
 
 audio_capture:

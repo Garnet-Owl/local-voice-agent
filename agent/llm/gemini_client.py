@@ -25,6 +25,7 @@ class GeminiClient:
         self._config = config
         self._generate_config = types.GenerateContentConfig(
             system_instruction=self._config.system_prompt,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
         )
         logger.info(f"LLM Client initialized with model: {config.model}")
 
