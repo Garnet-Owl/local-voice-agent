@@ -5,7 +5,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from agent.audio.pre_processor import AudioPreProcessor
 from agent.orchestrator import VoiceAgentOrchestrator
-from agent.tts.kokoro_tts import KOKORO_SAMPLE_RATE
+from agent.tts.lux_tts import LUX_SAMPLE_RATE
 from shared.logging import setup_logging
 
 logger = setup_logging(__name__)
@@ -36,7 +36,7 @@ class WebSocketHandler:
         await websocket.send_json(
             {
                 "type": "audio_format",
-                "sample_rate": KOKORO_SAMPLE_RATE,
+                "sample_rate": LUX_SAMPLE_RATE,
                 "encoding": "pcm_s16le",
             }
         )

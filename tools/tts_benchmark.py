@@ -13,8 +13,8 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from agent.stt.whisper_asr import SttConfig, WhisperAsr
-from agent.tts.kokoro_tts import TtsConfig, KokoroTts
+from agent.stt.vosk_asr import SttConfig, VoskAsr
+from agent.tts.lux_tts import TtsConfig, LuxTts
 
 DEFAULT_TEXT = (
     "Thanks for waiting. I can help with that right now, and I will keep this short."
@@ -38,7 +38,7 @@ def load_local_config(config_path: Path) -> dict:
         return yaml.safe_load(handle)
 
 
-def stream_tts_metrics(tts: KokoroTts, text: str) -> dict:
+def stream_tts_metrics(tts: LuxTts, text: str) -> dict:
     first_chunk_time = None
     chunk_count = 0
     total_samples = 0
@@ -60,7 +60,7 @@ def stream_tts_metrics(tts: KokoroTts, text: str) -> dict:
     }
 
 
-def synthesize_stt_input(tts: KokoroTts, text: str) -> np.ndarray:
+def synthesize_stt_input(tts: LuxTts, text: str) -> np.ndarray:
     audio = tts.synthesize(text)
     sample_points = np.linspace(0, len(audio) - 1, 16000, dtype=np.int32)
     return audio[sample_points].astype(np.float32)
@@ -83,7 +83,7 @@ def simulate_llm_load(text: str, passes: int = 2500) -> int:
     return produced
 
 
-async def overlap_metrics(tts: KokoroTts, stt: WhisperAsr, text: str) -> dict:
+async def overlap_metrics(tts: LuxTts, stt: VoskAsr, text: str) -> dict:
     stt_audio = await asyncio.to_thread(synthesize_stt_input, tts, text)
 
     start = time.perf_counter()
@@ -112,20 +112,22 @@ async def benchmark_thread_count(
     text: str,
     runs: int,
 ) -> dict:
-    tts = KokoroTts(
+    tts = LuxTts(
         TtsConfig(
             model_id=cfg["tts"]["model_id"],
             device=cfg["tts"]["device"],
             speed=cfg["tts"].get("speed", 1.0),
             thread_count=threads,
+            num_steps=cfg["tts"].get("num_steps", 4),
+            t_shift=cfg["tts"].get("t_shift", 0.5),
+            prompt_audio=cfg["tts"].get("prompt_audio"),
         )
     )
     tts._ensure_loaded()
 
-    stt = WhisperAsr(
+    stt = VoskAsr(
         SttConfig(
-            model_id=cfg["stt"]["model_id"],
-            device=cfg["stt"]["device"],
+            model_path=cfg["stt"]["model_path"],
         )
     )
     stt._ensure_loaded()

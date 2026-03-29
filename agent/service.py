@@ -2,8 +2,8 @@ import asyncio
 from agent.audio.silero_vad import NeuralVADScanner
 from agent.llm.gemini_client import GeminiClient, LlmConfig
 from agent.orchestrator import VoiceAgentOrchestrator
-from agent.stt.whisper_asr import SttConfig, WhisperAsr
-from agent.tts.kokoro_tts import TtsConfig, KokoroTts
+from agent.stt.vosk_asr import SttConfig, VoskAsr
+from agent.tts.lux_tts import TtsConfig, LuxTts
 from shared.config import load_config
 from shared.logging import setup_logging
 from main import check_stt_health, check_llm_health, check_tts_health, check_vad_health
@@ -26,9 +26,9 @@ class VoiceAgentService:
         logger.info("Initializing voice agent engines...")
 
         stt_cfg = SttConfig(
-            model_id=cfg["stt"]["model_id"], device=cfg["stt"]["device"]
+            model_path=cfg["stt"]["model_path"],
         )
-        self.stt_engine = WhisperAsr(stt_cfg)
+        self.stt_engine = VoskAsr(stt_cfg)
         self.stt_engine._ensure_loaded()
 
         api_key = cfg["llm"]["api_key"]
@@ -46,9 +46,12 @@ class VoiceAgentService:
             model_id=cfg["tts"]["model_id"],
             device=cfg["tts"]["device"],
             speed=cfg["tts"].get("speed", 1.0),
-            thread_count=cfg["tts"].get("thread_count"),
+            thread_count=cfg["tts"].get("thread_count", 4),
+            num_steps=cfg["tts"].get("num_steps", 4),
+            t_shift=cfg["tts"].get("t_shift", 0.5),
+            prompt_audio=cfg["tts"].get("prompt_audio"),
         )
-        self.tts_engine = KokoroTts(tts_cfg)
+        self.tts_engine = LuxTts(tts_cfg)
         self.tts_engine._ensure_loaded()
 
         self.vad_engine = NeuralVADScanner(

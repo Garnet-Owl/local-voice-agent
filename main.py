@@ -10,10 +10,10 @@ async def check_stt_health(stt_engine):
     try:
         dummy_audio = np.zeros(16000, dtype=np.float32)
         stt_engine.transcribe(dummy_audio)
-        logger.info("WhisperAsr Health Check: OK")
+        logger.info("VoskAsr Health Check: OK")
         return True
     except Exception as e:
-        logger.error(f"WhisperAsr Health Check FAILED: {e}")
+        logger.error(f"VoskAsr Health Check FAILED: {e}")
         return False
 
 
@@ -31,11 +31,11 @@ async def check_llm_health(llm_engine):
 
 async def check_tts_health(tts_engine):
     try:
-        tts_engine.synthesize("health check")
-        logger.info("KokoroTts Health Check: OK")
+        tts_engine.synthesize("This is a system health check for the voice engine.")
+        logger.info("LuxTts Health Check: OK")
         return True
     except Exception as e:
-        logger.error(f"KokoroTts Health Check FAILED: {e}")
+        logger.error(f"LuxTts Health Check FAILED: {e}")
         return False
 
 

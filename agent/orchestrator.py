@@ -12,8 +12,8 @@ from agent.audio.pre_processor import AudioPreProcessor
 from agent.audio.post_processor import AudioPostProcessor
 from agent.audio.silero_vad import NeuralVADScanner
 from agent.llm.gemini_client import GeminiClient
-from agent.stt.whisper_asr import WhisperAsr
-from agent.tts.kokoro_tts import KOKORO_SAMPLE_RATE, KokoroTts
+from agent.stt.vosk_asr import VoskAsr
+from agent.tts.lux_tts import LUX_SAMPLE_RATE, LuxTts
 from shared.logging import setup_logging
 
 logger = setup_logging(__name__)
@@ -32,7 +32,7 @@ class VoiceClientOrchestrator:
         self._audio_queue = queue.Queue()
         self._playback_queue = queue.Queue()
         self._is_running = True
-        self._output_sample_rate = KOKORO_SAMPLE_RATE
+        self._output_sample_rate = LUX_SAMPLE_RATE
         self._playback_remainder = np.array([], dtype=np.float32)
 
         chunk_dur = 0.032 if self._sample_rate == 16000 else 0.016
@@ -189,9 +189,9 @@ class VoiceAgentOrchestrator:
 
     def __init__(
         self,
-        stt_engine: WhisperAsr,
+        stt_engine: VoskAsr,
         llm_engine: GeminiClient,
-        tts_engine: KokoroTts,
+        tts_engine: LuxTts,
         vad_engine: NeuralVADScanner,
     ) -> None:
         self._stt = stt_engine

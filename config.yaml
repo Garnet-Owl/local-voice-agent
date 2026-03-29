@@ -1,6 +1,5 @@
 stt:
-  model_id: "distil-whisper/distil-small.en"
-  device: "cpu"
+  model_path: "models/vosk-model-en-us-0.22-lgraph"
 
 llm:
   model: "gemini-3-flash-preview"
@@ -11,10 +10,13 @@ llm:
     Avoid bullet points, markdown, or lists. Speak in plain sentences only.
 
 tts:
-  model_id: "af_heart"
+  model_id: "YatharthS/LuxTTS"
   device: "cpu"
-  speed: 1.1
-  thread_count:
+  speed: 1.0
+  thread_count: 4
+  num_steps: 4
+  t_shift: 0.5
+  prompt_audio: "models/default_voice.wav"
 
 audio_capture:
   sample_rate: 16000
