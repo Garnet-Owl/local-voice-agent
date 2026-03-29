@@ -32,10 +32,10 @@ async def check_llm_health(llm_engine):
 async def check_tts_health(tts_engine):
     try:
         tts_engine.synthesize("health check")
-        logger.info("VitsTts Health Check: OK")
+        logger.info("KokoroTts Health Check: OK")
         return True
     except Exception as e:
-        logger.error(f"VitsTts Health Check FAILED: {e}")
+        logger.error(f"KokoroTts Health Check FAILED: {e}")
         return False
 
 

@@ -22,14 +22,24 @@ class KokoroTts:
     def __init__(self, config: TtsConfig) -> None:
         self._config = config
         self._pipeline = None
+        import torch
+
+        if config.device == "cpu":
+            torch.set_num_threads(8)
+            torch.set_num_interop_threads(1)
+            logger.info(
+                "Torch thread settings optimized for 12-thread CPU (threads=8)."
+            )
 
     def _ensure_loaded(self) -> None:
         if self._pipeline is not None:
             return
         from kokoro import KPipeline
 
-        logger.info(f"Loading TTS model: {self._config.model_id}")
-        self._pipeline = KPipeline(lang_code="a")
+        logger.info(
+            f"Loading TTS model: {self._config.model_id} on {self._config.device}"
+        )
+        self._pipeline = KPipeline(lang_code="a", device=self._config.device)
 
     def synthesize(self, text: str) -> np.ndarray:
         self._ensure_loaded()

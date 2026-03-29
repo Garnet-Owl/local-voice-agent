@@ -1,4 +1,5 @@
 import numpy as np
+import librosa
 from shared.logging import setup_logging
 
 logger = setup_logging(__name__)
@@ -14,7 +15,10 @@ class AudioPostProcessor:
         if len(audio) == 0:
             return audio
 
-        peak = np.abs(audio).max()
+        # Trim leading/trailing silence (below 30dB)
+        trimmed, _ = librosa.effects.trim(audio, top_db=30)
+
+        peak = np.abs(trimmed).max()
         if peak > 0:
-            return audio / peak
-        return audio
+            return trimmed / peak
+        return trimmed

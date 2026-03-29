@@ -1,5 +1,5 @@
 stt:
-  model_id: "UsefulSensors/moonshine-tiny"
+  model_id: "distil-whisper/distil-small.en"
   device: "cpu"
 
 llm:

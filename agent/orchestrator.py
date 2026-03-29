@@ -12,6 +12,7 @@ import soundfile as sf
 import websockets
 from agent.audio.interrupt_handler import InterruptHandler
 from agent.audio.pre_processor import AudioPreProcessor
+from agent.audio.post_processor import AudioPostProcessor
 from agent.audio.silero_vad import NeuralVADScanner
 from agent.llm.gemini_client import GeminiClient
 from agent.stt.whisper_asr import WhisperAsr
@@ -141,6 +142,7 @@ class VoiceAgentOrchestrator:
         self._llm = llm_engine
         self._tts = tts_engine
         self._vad = vad_engine
+        self._post_processor = AudioPostProcessor()
 
     async def process_audio_turn(
         self,
@@ -167,7 +169,8 @@ class VoiceAgentOrchestrator:
             async for chunk in self._llm.stream_reply(transcript, chat):
                 full_reply += chunk
                 sentence_buffer += chunk
-                match = re.search(r"([.!?])\s+", sentence_buffer)
+                # Optimized chunking: Break at terminal punctuation or commas if buffer is long
+                match = re.search(r"([.!?])\s+|([,;])\s+(?=.{15,})", sentence_buffer)
                 if match:
                     split_idx = match.end()
                     sentence = (
@@ -195,12 +198,23 @@ class VoiceAgentOrchestrator:
                 sentence = await sentence_queue.get()
                 if sentence is None:
                     break
+
                 t0_tts = time.perf_counter()
-                chunks = await asyncio.to_thread(list, self._tts.stream(sentence))
-                for audio_chunk in chunks:
-                    buffer = io.BytesIO()
-                    sf.write(buffer, audio_chunk, 24000, format="WAV")
-                    await on_chunk_callback(buffer.getvalue())
+                loop = asyncio.get_running_loop()
+
+                def generate_and_send():
+                    for audio_chunk in self._tts.stream(sentence):
+                        # Apply AudioPostProcessor logic (trimming, normalization)
+                        refined = self._post_processor.process(audio_chunk)
+                        if refined is not None and len(refined) > 0:
+                            buffer = io.BytesIO()
+                            sf.write(buffer, refined, 24000, format="WAV")
+                            asyncio.run_coroutine_threadsafe(
+                                on_chunk_callback(buffer.getvalue()), loop
+                            )
+
+                await asyncio.to_thread(generate_and_send)
+
                 logger.info(
                     f"[TTS: {time.perf_counter() - t0_tts:.2f}s] Synthesized: {sentence}"
                 )
