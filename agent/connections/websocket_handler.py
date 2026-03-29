@@ -21,14 +21,14 @@ class WebSocketHandler:
     async def handle_connection(self, websocket: WebSocket) -> None:
         await websocket.accept()
         logger.info("Client connected.")
-        history = []
+        chat = self._orchestrator._llm.new_chat()
 
         try:
             while True:
                 data = await websocket.receive_json()
 
                 if data.get("type") == "audio":
-                    await self._process_audio_message(websocket, data, history)
+                    await self._process_audio_message(websocket, data, chat)
 
         except WebSocketDisconnect:
             logger.info("Client disconnected.")
@@ -36,7 +36,7 @@ class WebSocketHandler:
             logger.error(f"WebSocket Error: {e}")
 
     async def _process_audio_message(
-        self, websocket: WebSocket, data: dict, history: list
+        self, websocket: WebSocket, data: dict, chat
     ) -> None:
         try:
             audio_bytes = base64.b64decode(data["data"])
@@ -55,13 +55,9 @@ class WebSocketHandler:
                 audio_b64 = base64.b64encode(processed_bytes).decode("utf-8")
                 await websocket.send_json({"type": "audio_chunk", "data": audio_b64})
 
-            transcript, full_reply = await self._orchestrator.process_audio_turn(
-                audio_array, history, send_audio_chunk
+            await self._orchestrator.process_audio_turn(
+                audio_array, chat, send_audio_chunk
             )
-
-            if transcript:
-                history.append({"role": "user", "text": transcript})
-                history.append({"role": "model", "text": full_reply})
 
             await websocket.send_json({"type": "turn_complete"})
 

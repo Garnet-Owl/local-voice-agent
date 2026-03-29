@@ -31,10 +31,14 @@ class VoiceAgentService:
         self.stt_engine = WhisperAsr(stt_cfg)
         self.stt_engine._ensure_loaded()
 
+        api_key = cfg["llm"]["api_key"]
+        logger.info(
+            f"[service] GEMINI_API_KEY present before GeminiClient: {'YES' if api_key else 'NO'}"
+        )
         llm_cfg = LlmConfig(
             model=cfg["llm"]["model"],
             system_prompt=cfg["llm"]["system_prompt"],
-            api_key=cfg["llm"]["api_key"],
+            api_key=api_key,
         )
         self.llm_engine = GeminiClient(llm_cfg)
 

@@ -10,8 +10,6 @@ import numpy as np
 import sounddevice as sd
 import soundfile as sf
 import websockets
-from google.genai import types
-
 from agent.audio.interrupt_handler import InterruptHandler
 from agent.audio.pre_processor import AudioPreProcessor
 from agent.audio.silero_vad import NeuralVADScanner
@@ -147,7 +145,7 @@ class VoiceAgentOrchestrator:
     async def process_audio_turn(
         self,
         audio_array,
-        history: list,
+        chat,
         on_chunk_callback,
     ) -> str:
         t0 = time.perf_counter()
@@ -159,11 +157,6 @@ class VoiceAgentOrchestrator:
 
         logger.info(f"[STT: {t_stt:.2f}s] You: {transcript}")
 
-        history_content = [
-            types.Content(role=h["role"], parts=[types.Part.from_text(text=h["text"])])
-            for h in history
-        ]
-
         tts_queue = asyncio.Queue()
 
         async def llm_task():
@@ -171,7 +164,7 @@ class VoiceAgentOrchestrator:
             full_reply = ""
             t0_llm = time.perf_counter()
 
-            async for chunk in self._llm.stream_reply(transcript, history_content):
+            async for chunk in self._llm.stream_reply(transcript, chat):
                 full_reply += chunk
                 sentence_buffer += chunk
 

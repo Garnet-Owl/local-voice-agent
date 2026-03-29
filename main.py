@@ -19,7 +19,8 @@ async def check_stt_health(stt_engine):
 
 async def check_llm_health(llm_engine):
     try:
-        async for _ in llm_engine.stream_reply("health check", []):
+        chat = llm_engine.new_chat()
+        async for _ in llm_engine.stream_reply("health check", chat):
             break
         logger.info("GeminiClient Health Check: OK")
         return True
@@ -59,9 +60,9 @@ async def run_pipeline_diagnostic(orchestrator, audio_data: np.ndarray):
         if not transcript:
             return False
 
-        history = []
+        chat = orchestrator._llm.new_chat()
         reply = ""
-        async for chunk in orchestrator._llm.stream_reply(transcript, history):
+        async for chunk in orchestrator._llm.stream_reply(transcript, chat):
             reply += chunk
         if not reply:
             return False

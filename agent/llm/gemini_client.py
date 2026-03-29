@@ -23,32 +23,23 @@ class GeminiClient:
 
         self._client = genai.Client(api_key=config.api_key)
         self._config = config
+        self._generate_config = types.GenerateContentConfig(
+            system_instruction=self._config.system_prompt,
+        )
         logger.info(f"LLM Client initialized with model: {config.model}")
+
+    def new_chat(self) -> genai.chats.AsyncChat:
+        return self._client.aio.chats.create(
+            model=self._config.model,
+            config=self._generate_config,
+        )
 
     async def stream_reply(
         self,
         user_text: str,
-        history: list[types.Content],
+        chat: genai.chats.AsyncChat,
     ) -> AsyncGenerator[str, None]:
-        history.append(
-            types.Content(role="user", parts=[types.Part.from_text(text=user_text)])
-        )
-
-        generate_config = types.GenerateContentConfig(
-            system_instruction=self._config.system_prompt,
-        )
-
-        full_reply = ""
-        async for chunk in await self._client.aio.models.generate_content_stream(
-            model=self._config.model,
-            contents=history,
-            config=generate_config,
-        ):
+        async for chunk in await chat.send_message_stream(user_text):
             text = chunk.text or ""
             if text:
-                full_reply += text
                 yield text
-
-        history.append(
-            types.Content(role="model", parts=[types.Part.from_text(text=full_reply)])
-        )
